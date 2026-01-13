@@ -34,13 +34,17 @@ const char *cCECRemote::VDRNAME = "VDR";
  *
  * @param cbParam Pointer to the cCECRemote instance
  * @param key Pointer to the received key press information
+ * @note Thread-safe via static mutex for lastkey tracking.
  */
 static void CecKeyPressCallback(void *cbParam, const cec_keypress* key)
 {
     static cec_user_control_code lastkey = CEC_USER_CONTROL_CODE_UNKNOWN;
+    static cMutex lastkeyMutex;  // Protect static lastkey from concurrent access
     cCECRemote *rem = (cCECRemote *)cbParam;
 
     Dsyslog("key pressed %02x (%d)", key->keycode, key->duration);
+
+    cMutexLock lock(&lastkeyMutex);
     if (
         ((key->keycode >= 0) && (key->keycode <= CEC_USER_CONTROL_CODE_MAX)) &&
         ((key->duration == 0) || (key->keycode != lastkey))
@@ -60,10 +64,16 @@ static void CecKeyPressCallback(void *cbParam, const cec_keypress* key)
  *
  * @param cbParam Pointer to the cCECRemote instance
  * @param command Pointer to the received CEC command structure
+ * @note Safely handles case where adapter is disconnected during callback.
  */
 static void CecCommandCallback(void *cbParam, const cec_command *command)
 {
     cCECRemote *rem = (cCECRemote *)cbParam;
+    // Safety check: adapter may be disconnected during callback
+    if (rem->mCECAdapter == nullptr) {
+        Dsyslog("CEC Command ignored - adapter disconnected");
+        return;
+    }
     Dsyslog("CEC Command %d : %s Init %d Dest %d", command->opcode,
                                    rem->mCECAdapter->ToString(command->opcode),
                                    command->initiator, command->destination);
@@ -587,6 +597,32 @@ cCECRemote::~cCECRemote()
 }
 
 /**
+ * @brief Gets the number of pending commands in the worker queue.
+ *
+ * Thread-safe implementation using mutex protection.
+ *
+ * @return Number of commands waiting to be processed.
+ */
+int cCECRemote::GetWorkQueueSize()
+{
+    cMutexLock lock(&mWorkerQueueMutex);
+    return mWorkerQueue.size();
+}
+
+/**
+ * @brief Gets the number of pending commands in the exec queue.
+ *
+ * Thread-safe implementation using mutex protection.
+ *
+ * @return Number of commands in the execution queue.
+ */
+int cCECRemote::GetExecQueueSize()
+{
+    cMutexLock lock(&mExecQueueMutex);
+    return mExecQueue.size();
+}
+
+/**
  * @brief Lists all active CEC devices on the bus.
  *
  * Queries the CEC adapter for all active devices and returns
@@ -934,12 +970,12 @@ void cCECRemote::PushWaitCmd(cCmd &cmd, int timeout)
     // Wait until this command is processed.
     do {
         signaled = mCmdReady.Wait(timeout);
-    } while ((mProcessedSerial != serial) && (signaled));
+    } while ((mProcessedSerial.load() != serial) && (signaled));
     if (!signaled) {
-        Esyslog("cCECRemote::PushWaitCmd timeout %d %d", mProcessedSerial, serial);
+        Esyslog("cCECRemote::PushWaitCmd timeout %d %d", mProcessedSerial.load(), serial);
     }
     else {
-        Csyslog("cCECRemote %d %d", mProcessedSerial, serial);
+        Csyslog("cCECRemote %d %d", mProcessedSerial.load(), serial);
     }
 }
 

@@ -19,6 +19,7 @@
 #include <cectypes.h>
 #include <cec.h>
 #include <stdint.h>
+#include <atomic>
 #include <queue>
 #include <list>
 #include <vector>
@@ -114,14 +115,16 @@ public:
     /**
      * @brief Gets the number of pending commands in worker queue.
      * @return Number of commands waiting to be processed.
+     * @note Thread-safe via mutex protection.
      */
-    int GetWorkQueueSize() {return mWorkerQueue.size();}
+    int GetWorkQueueSize();
 
     /**
      * @brief Gets the number of pending commands in exec queue.
      * @return Number of commands in the execution queue.
+     * @note Thread-safe via mutex protection.
      */
-    int GetExecQueueSize() {return mExecQueue.size();}
+    int GetExecQueueSize();
 
     /**
      * @brief Checks if connected to a CEC adapter.
@@ -134,7 +137,7 @@ private:
     static constexpr const int MAX_CEC_ADAPTERS = 10;
     static const char      *VDRNAME;
     int                    mCECLogLevel;
-    int                    mProcessedSerial = -1;
+    std::atomic<int>       mProcessedSerial{-1};  ///< Thread-safe command completion tracking
     int                    mStartupDelay;
     uint8_t                mDevicesFound = 0;
     uint8_t                mHDMIPort;
@@ -159,8 +162,8 @@ private:
     deviceTypeList         mDeviceTypes;
     bool                   mShutdownOnStandby;
     bool                   mPowerOffOnStandby;
-    bool                   mInExec = false;
-    bool                   mDeferredStartup = false;
+    std::atomic<bool>      mInExec{false};        ///< Thread-safe exec state flag
+    std::atomic<bool>      mDeferredStartup{false}; ///< Thread-safe deferred startup flag
     cPluginCecremote       *mPlugin;
 
     /** @brief Establishes connection to the CEC adapter. */

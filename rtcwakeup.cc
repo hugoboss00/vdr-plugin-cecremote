@@ -28,6 +28,11 @@ const char *rtcwakeup::RESET_RTCALARM = "/sys/class/rtc/rtc0/wakealarm";
 const char *rtcwakeup::RTC_DEVICE = "/proc/driver/rtc";
 const char *rtcwakeup::ALARM_KEY = "alarm_IRQ";
 
+/**
+ * @brief Trims trailing whitespace from a string in place.
+ *
+ * @param str String to trim
+ */
 void rtcwakeup::trim(char *str) {
     char *end = str + strlen(str) - 1;
     while (isspace(*end) && (end > str)) {
@@ -36,8 +41,10 @@ void rtcwakeup::trim(char *str) {
     }
 }
 
-/*
- * Reset the alarm state
+/**
+ * @brief Resets the RTC alarm state.
+ *
+ * Writes to the wakealarm sysfs file to clear the alarm flag.
  */
 void rtcwakeup::reset_alarm(void) {
     FILE *fp = fopen(RESET_RTCALARM, "w");
@@ -49,13 +56,14 @@ void rtcwakeup::reset_alarm(void) {
     fclose(fp);
 }
 
-/*
- * Check if the VDR was started via the RTC.
- * Returns :  rtcwakeup::RTC_WAKEUP   if wakeup from RTC was detected.
- *            rtcwakeup::OTHER_WAKEUP if no wakeup from the RTC was detected.
- *            rtcwakeup::RTC_ERROR    it was not possible to detect the startup
- *                                    reason, e.g. by problems accessing the
- *                                    /proc or /sys filesystems.
+/**
+ * @brief Checks if VDR was started via RTC wakeup.
+ *
+ * Reads /proc/driver/rtc to determine if the system was
+ * woken by an RTC alarm, indicating a scheduled wakeup.
+ *
+ * @return RTC_WAKEUP if woken by RTC, OTHER_WAKEUP if not,
+ *         RTC_ERROR if detection failed
  */
 rtcwakeup::RTC_WAKEUP_TYPE rtcwakeup::check(void) {
     FILE *fp = fopen(RTC_DEVICE, "r");

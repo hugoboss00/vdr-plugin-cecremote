@@ -1,7 +1,7 @@
 /*
  * CECRemote PlugIn for VDR
  *
- * Copyright (C) 2015-2016 Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
+ * Copyright (C) 2015-2024 Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
  *
  * This code is distributed under the terms and conditions of the
  * GNU GENERAL PUBLIC LICENSE. See the file COPYING for details.
@@ -20,6 +20,14 @@ using namespace cecplugin;
 
 namespace cecplugin {
 
+/**
+ * @brief Sends a VDR key press to a CEC device.
+ *
+ * Translates the VDR key to CEC key codes using the active
+ * keymap and sends keypress/keyrelease commands to the target device.
+ *
+ * @param cmd Reference to the command containing key and device info
+ */
 void cCECRemote::ActionKeyPress(cCmd &cmd)
 {
     cec_logical_address addr;
@@ -50,8 +58,14 @@ void cCECRemote::ActionKeyPress(cCmd &cmd)
     }
 }
 
-/*
- * TEXTVIEWON CEC command.
+/**
+ * @brief Sends a TEXT_VIEW_ON CEC command.
+ *
+ * Instructs a TV to switch to this device's input and
+ * turn on if in standby.
+ *
+ * @param address Logical address of the target device
+ * @return true on success, false on failure
  */
 bool cCECRemote::TextViewOn(cec_logical_address address)
 {
@@ -66,9 +80,15 @@ bool cCECRemote::TextViewOn(cec_logical_address address)
     return mCECAdapter->Transmit(data);
 }
 
-/*
- * Get the device power state and execute either the poweron or
- * poweroff command queue.
+/**
+ * @brief Executes power toggle based on device state.
+ *
+ * Queries the device power status and executes either the
+ * poweron or poweroff command queue accordingly.
+ *
+ * @param dev Reference to the target device
+ * @param poweron Command queue to execute if device is off
+ * @param poweroff Command queue to execute if device is on
  */
 void cCECRemote::ExecToggle(cCECDevice dev,
                             const cCmdQueue &poweron, const cCmdQueue &poweroff)
@@ -110,7 +130,14 @@ void cCECRemote::ExecToggle(cCECDevice dev,
     }
 }
 
-// Process actions defined for a CEC command.
+/**
+ * @brief Processes CEC commands received from the bus.
+ *
+ * Looks up registered handlers for the CEC opcode and executes
+ * matching actions (start/stop menus, run command queues).
+ *
+ * @param cmd Reference to the received CEC command
+ */
 void cCECRemote::CECCommand(const cCmd &cmd) {
     mapCommandHandler *h = mPlugin->GetCECCommandHandlers();
 
@@ -129,7 +156,8 @@ void cCECRemote::CECCommand(const cCmd &cmd) {
             // First stop the defined player if running
             if (!handler.mStopMenu.empty()) {
                 // Get current running control
-                cControl *c = cControl::Control();
+            	cMutexLock lock;
+                cControl *c = cControl::Control(lock);
                 if (c != NULL) {
                     if (cCECControl* cont = dynamic_cast<cCECControl*>(c)) {
                         Dsyslog("Stillpic Player running %s %s",

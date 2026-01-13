@@ -22,11 +22,19 @@ namespace cecplugin {
 
 std::vector<cCECMenu> cCECOsd::mMenuItems;
 
+/**
+ * @brief Constructs the CEC device OSD menu.
+ *
+ * Creates an OSD menu listing all configured CEC menu items,
+ * with numeric shortcuts for quick selection (1-9).
+ *
+ * @param plugin Pointer to the parent plugin instance
+ */
 cCECOsd::cCECOsd(cPluginCecremote *plugin) :
                  cOsdMenu(tr("CEC Device")) {
 
   int cnt = 1;
-  char num[4];
+  char num[20];
   cCECMenu menuitem;
   string menutxt;
   cCECMenuList *menulist = plugin->GetMenuList();
@@ -48,6 +56,13 @@ cCECOsd::cCECOsd(cPluginCecremote *plugin) :
   }
 }
 
+/**
+ * @brief Constructs an OSD menu item for a CEC device.
+ *
+ * @param menuitem Reference to the menu configuration
+ * @param menutxt Display text for the menu item
+ * @param plugin Pointer to the parent plugin instance
+ */
 cCECOsdItem::cCECOsdItem(const cCECMenu &menuitem, const char *menutxt,
                          cPluginCecremote *plugin) :
         cOsdItem(menutxt), mControl(NULL) {
@@ -56,6 +71,15 @@ cCECOsdItem::cCECOsdItem(const cCECMenu &menuitem, const char *menutxt,
     Dsyslog("Menu %s", menutxt);
 }
 
+/**
+ * @brief Processes key presses in the OSD menu.
+ *
+ * Handles Ok to select current item and numeric keys (1-9)
+ * for direct menu item selection.
+ *
+ * @param key The pressed key
+ * @return OS state indicating menu continuation or exit
+ */
 eOSState cCECOsdItem::ProcessKey(eKeys key) {
     eOSState state = osUnknown;
 

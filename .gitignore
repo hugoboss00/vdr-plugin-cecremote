@@ -11,4 +11,6 @@ push.sh
 .cproject
 .project
 .settings
+.vscode
+*-instructions.md
 

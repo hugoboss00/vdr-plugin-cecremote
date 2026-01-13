@@ -20,6 +20,12 @@ namespace cecplugin {
 
 opcodeMap::mapOp *opcodeMap::map = NULL;
 
+/**
+ * @brief Initializes the CEC opcode lookup map.
+ *
+ * Lazily creates the map and populates it with all known
+ * CEC opcode name-to-value mappings.
+ */
 void opcodeMap::initMap() {
     if (map != NULL) {
         return;
@@ -100,6 +106,13 @@ void opcodeMap::initMap() {
     CEC_OPCODE_ADDMAP(NONE);
 }
 
+/**
+ * @brief Looks up a CEC opcode by name.
+ *
+ * @param name The opcode name to look up
+ * @param opcode Reference to store the found opcode
+ * @return true if found, false otherwise
+ */
 bool opcodeMap::getOpcode(std::string name, cec_opcode &opcode) {
     bool found = false;
     initMap();

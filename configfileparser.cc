@@ -1,7 +1,7 @@
 /*
  * CECRemote PlugIn for VDR
  *
- * Copyright (C) 2015-2016 Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
+ * Copyright (C) 2015-2019 Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
  *
  * This code is distributed under the terms and conditions of the
  * GNU GENERAL PUBLIC LICENSE. See the file COPYING for details.
@@ -21,55 +21,15 @@ using namespace std;
 using namespace pugi;
 
 namespace cecplugin {
-// Keywords used in the XML config file
-const char *cConfigFileParser::XML_ONSTART = "onstart";
-const char *cConfigFileParser::XML_ONSTOP  = "onstop";
-const char *cConfigFileParser::XML_ONPOWERON = "onpoweron";
-const char *cConfigFileParser::XML_ONPOWEROFF = "onpoweroff";
-const char *cConfigFileParser::XML_GLOBAL = "global";
-const char *cConfigFileParser::XML_MENU = "menu";
-const char *cConfigFileParser::XML_CECKEYMAP = "ceckeymap";
-const char *cConfigFileParser::XML_VDRKEYMAP = "vdrkeymap";
-const char *cConfigFileParser::XML_ID = "id";
-const char *cConfigFileParser::XML_KEY = "key";
-const char *cConfigFileParser::XML_CODE = "code";
-const char *cConfigFileParser::XML_VALUE = "value";
-const char *cConfigFileParser::XML_STOP = "stop";
-const char *cConfigFileParser::XML_KEYMAPS = "keymaps";
-const char *cConfigFileParser::XML_FILE = "file";
-const char *cConfigFileParser::XML_CEC = "cec";
-const char *cConfigFileParser::XML_VDR = "vdr";
-const char *cConfigFileParser::XML_POWERON = "poweron";
-const char *cConfigFileParser::XML_POWEROFF = "poweroff";
-const char *cConfigFileParser::XML_MAKEACTIVE = "makeactive";
-const char *cConfigFileParser::XML_MAKEINACTIVE = "makeinactive";
-const char *cConfigFileParser::XML_EXEC = "exec";
-const char *cConfigFileParser::XML_TEXTVIEWON = "textviewon";
-const char *cConfigFileParser::XML_COMBOKEYTIMEOUTMS = "combokeytimeoutms";
-const char *cConfigFileParser::XML_CECDEBUG = "cecdebug";
-const char *cConfigFileParser::XML_CECDEVICETYPE = "cecdevicetype";
-const char *cConfigFileParser::XML_DEVICE = "device";
-const char *cConfigFileParser::XML_PHYSICAL = "physical";
-const char *cConfigFileParser::XML_LOGICAL = "logical";
-const char *cConfigFileParser::XML_ONMANUALSTART = "onmanualstart";
-const char *cConfigFileParser::XML_ONSWITCHTOTV = "onswitchtotv";
-const char *cConfigFileParser::XML_ONSWITCHTORADIO = "onswitchtoradio";
-const char *cConfigFileParser::XML_ONSWITCHTOREPLAY = "onswitchtoreplay";
-const char *cConfigFileParser::XML_ONACTIVESOURCE = "onactivesource";
-const char *cConfigFileParser::XML_HDMIPORT = "hdmiport";
-const char *cConfigFileParser::XML_BASEDEVICE = "basedevice";
-const char *cConfigFileParser::XML_SHUTDOWNONSTANDBY = "shutdownonstandby";
-const char *cConfigFileParser::XML_POWEROFFONSTANDBY = "poweroffonstandby";
-const char *cConfigFileParser::XML_ONCECCOMMAND = "onceccommand";
-const char *cConfigFileParser::XML_EXECMENU = "execmenu";
-const char *cConfigFileParser::XML_STOPMENU = "stopmenu";
-const char *cConfigFileParser::XML_COMMANDLIST = "commandlist";
-const char *cConfigFileParser::XML_COMMAND = "command";
-const char *cConfigFileParser::XML_INITIATOR = "initiator";
-const char *cConfigFileParser::XML_RTCDETECT = "rtcdetect";
-const char *cConfigFileParser::XML_STARTUPDELAY = "startupdelay";
-/*
- * Parse <onceccommand>
+
+/**
+ * @brief Parses an <onceccommand> XML element.
+ *
+ * Parses a CEC command handler definition that maps incoming CEC opcodes
+ * to actions like executing menus or command queues.
+ *
+ * @param node The XML node containing the onceccommand definition
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseOnCecCommand(const xml_node node) {
     cCECCommandHandler h;
@@ -121,8 +81,30 @@ void cConfigFileParser::parseOnCecCommand(const xml_node node) {
             std::pair<cec_opcode, cCECCommandHandler>(h.mCecOpCode, h));
 }
 
-/*
- * Parse <player file="">
+/**
+ * @brief Validates that a node has no child elements.
+ *
+ * @param node The XML node to check
+ * @throws cCECConfigException if node has child elements
+ */
+void cConfigFileParser::checkSubElement(xml_node node)
+{
+    if (hasElements(node)) {
+        string s = "Too much arguments for ";
+        s += node.name();
+        throw cCECConfigException(getLineNumber(node.offset_debug()), s);
+    }
+}
+
+/**
+ * @brief Parses a <player> XML element within a menu.
+ *
+ * Extracts still picture path, stop keys, keymaps, and event handlers
+ * for a still picture player definition.
+ *
+ * @param node The XML node containing the player definition
+ * @param menu Reference to the menu being configured
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parsePlayer(const xml_node node, cCECMenu &menu)
 {
@@ -139,14 +121,10 @@ void cConfigFileParser::parsePlayer(const xml_node node, cCECMenu &menu)
 
         if (currentNode.type() == node_element)  // is element
         {
-            Dsyslog("          %s %s\n", currentNode.name(), currentNode.text().as_string());
-
-            if (hasElements(currentNode)) {
-                string s = "Too much arguments for ";
-                s += currentNode.name();
-                throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
-            }
+            Dsyslog("          %s %s\n", currentNode.name(),
+                    currentNode.text().as_string());
             if (strcasecmp(currentNode.name(), XML_STOP) == 0) {
+                checkSubElement(currentNode);
                 eKeys k = cKey::FromString(currentNode.text().as_string());
                 if (k == kNone) {
                     string s = "Invalid key ";
@@ -156,12 +134,36 @@ void cConfigFileParser::parsePlayer(const xml_node node, cCECMenu &menu)
                 menu.mStopKeys.insert(k);
             }
             else if (strcasecmp(currentNode.name(), XML_KEYMAPS) == 0) {
+                checkSubElement(currentNode);
                 menu.mVDRKeymap = currentNode.attribute(XML_VDR).
                                         as_string(cKeyMaps::DEFAULTKEYMAP);
                 menu.mCECKeymap = currentNode.attribute(XML_CEC).
                                                         as_string(cKeyMaps::DEFAULTKEYMAP);
                 Dsyslog("              Keymap VDR %s CEC %s",
                         menu.mVDRKeymap.c_str(), menu.mCECKeymap.c_str());
+            }
+            else if (strcasecmp(currentNode.name(), XML_ONKEY) == 0) {
+                cCmdQueue cmdlist;
+                string code = currentNode.attribute(XML_CODE).as_string("");
+                if (code.empty()) {
+                    string s = "Missing code in onkey";
+                    Esyslog(s.c_str());
+                    throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
+                }
+                eKeys k = cKey::FromString(code.c_str());
+                if (k == kNone) {
+                    string s = "Unknown VDR key code " + code;
+                    Esyslog(s.c_str());
+                    throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
+                }
+                parseList(currentNode, cmdlist);
+                menu.mCmdQueueKey.insert(std::pair<eKeys, cCmdQueue>(k, cmdlist));
+            }
+            else if (strcasecmp(currentNode.name(), XML_ONVOLUMEUP) == 0) {
+                parseList(currentNode, menu.mOnVolumeUp);
+            }
+            else if (strcasecmp(currentNode.name(), XML_ONVOLUMEDOWN) == 0) {
+                parseList(currentNode, menu.mOnVolumeDown);
             }
             else {
                 string s = "Invalid command ";
@@ -176,8 +178,11 @@ void cConfigFileParser::parsePlayer(const xml_node node, cCECMenu &menu)
     }
 }
 
-/*
- * Check if a tag contains child elements.
+/**
+ * @brief Checks if an XML node contains child elements.
+ *
+ * @param node The XML node to check
+ * @return true if node has child elements, false otherwise
  */
 bool cConfigFileParser::hasElements(const xml_node node)
 {
@@ -192,7 +197,15 @@ bool cConfigFileParser::hasElements(const xml_node node)
     return false;
 }
 
-// Convert text to bool, returns false if conversion fails.
+/**
+ * @brief Converts a text string to boolean.
+ *
+ * Accepts "true" or "false" (case-insensitive).
+ *
+ * @param text The text to convert
+ * @param val Reference to store the result
+ * @return true if conversion successful, false otherwise
+ */
 bool cConfigFileParser::textToBool(const char *text, bool &val)
 {
     if (strcasecmp(text, "true") == 0) {
@@ -207,8 +220,16 @@ bool cConfigFileParser::textToBool(const char *text, bool &val)
     return true;
 }
 
-/*
- * Helper function to get device address
+/**
+ * @brief Parses a device reference from text.
+ *
+ * Interprets numeric strings as logical addresses, or looks up
+ * named devices in the device map.
+ *
+ * @param text The device specification text
+ * @param device Reference to store the parsed device
+ * @param linenumber Line number for error reporting
+ * @throws cCECConfigException on invalid device specification
  */
 void cConfigFileParser::getDevice(const char *text, cCECDevice &device,
                                      ptrdiff_t linenumber)
@@ -239,11 +260,18 @@ void cConfigFileParser::getDevice(const char *text, cCECDevice &device,
         }
     }
 }
-/*
- * parse <onstart> and <onstop>
+
+/**
+ * @brief Parses a command list from XML.
+ *
+ * Parses child elements of <onstart>, <onstop>, <onkey>, etc.
+ * and builds a command queue with power, exec, and other commands.
+ *
+ * @param node The parent XML node containing the command list
+ * @param cmdlist Reference to the command queue to populate
+ * @throws cCECConfigException on parsing errors
  */
-void cConfigFileParser::parseList(const xml_node node,
-                                     cCmdQueue &cmdlist)
+void cConfigFileParser::parseList(const xml_node node, cCmdQueue &cmdlist)
 {
     cCmd cmd;
 
@@ -253,11 +281,7 @@ void cConfigFileParser::parseList(const xml_node node,
         if (currentNode.type() == node_element)  // is element
         {
             Dsyslog("     %s %s\n", node.name(), currentNode.name());
-            if (hasElements(currentNode)) {
-                string s = "Too much arguments for ";
-                s += currentNode.name();
-                throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
-            }
+            checkSubElement(currentNode);
             if (strcasecmp(currentNode.name(), XML_POWERON) == 0) {
                 cmd.mCmd = CEC_POWERON;
                 getDevice(currentNode.text().as_string(""), cmd.mDevice,
@@ -305,8 +329,14 @@ void cConfigFileParser::parseList(const xml_node node,
     }
 }
 
-/*
- * parse elements between <menu name="" address="">
+/**
+ * @brief Parses a <menu> XML element.
+ *
+ * Extracts menu name, device address, player configuration, and
+ * event handlers (onstart, onstop, onpoweron, onpoweroff).
+ *
+ * @param node The XML node containing the menu definition
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseMenu(const xml_node node)
 {
@@ -404,8 +434,11 @@ void cConfigFileParser::parseMenu(const xml_node node)
     mMenuList.push_back(menu);
 }
 
-/*
- * Convert device type string to cec_device_type
+/**
+ * @brief Converts a device type string to cec_device_type enum.
+ *
+ * @param s Device type name (TV, RECORDING_DEVICE, TUNER, PLAYBACK_DEVICE, AUDIO_SYSTEM)
+ * @return Corresponding cec_device_type, or CEC_DEVICE_TYPE_RESERVED if unknown
  */
 cec_device_type cConfigFileParser::getDeviceType(const string &s)
 {
@@ -426,8 +459,15 @@ cec_device_type cConfigFileParser::getDeviceType(const string &s)
     }
     return CEC_DEVICE_TYPE_RESERVED;
 }
-/*
- *  Parse elements between <global> nodes.
+
+/**
+ * @brief Parses the <global> XML section.
+ *
+ * Extracts all global configuration options including debug level,
+ * HDMI port, keymaps, startup/shutdown commands, and event handlers.
+ *
+ * @param node The XML node containing the global section
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseGlobal(const pugi::xml_node node)
 {
@@ -473,6 +513,14 @@ void cConfigFileParser::parseGlobal(const pugi::xml_node node)
             else if (strcasecmp(currentNode.name(), XML_ONSTOP) == 0) {
                 parseList(currentNode, mGlobalOptions.mOnStop);
             }
+            // <onVolumeUp>
+            else if (strcasecmp(currentNode.name(), XML_ONVOLUMEUP) == 0) {
+                parseList(currentNode, mGlobalOptions.mOnVolumeUp);
+            }
+            // <onVolumeDown>
+            else if (strcasecmp(currentNode.name(), XML_ONVOLUMEDOWN) == 0) {
+                parseList(currentNode, mGlobalOptions.mOnVolumeDown);
+            }
             // <onManualStart>
             else if (strcasecmp(currentNode.name(), XML_ONMANUALSTART) == 0) {
                 parseList(currentNode, mGlobalOptions.mOnManualStart);
@@ -480,6 +528,10 @@ void cConfigFileParser::parseGlobal(const pugi::xml_node node)
             // <onSwitchToTV>
             else if (strcasecmp(currentNode.name(), XML_ONSWITCHTOTV) == 0) {
                 parseList(currentNode, mGlobalOptions.mOnSwitchToTV);
+            }
+            // <audioDevice>
+            else if (strcasecmp(currentNode.name(), XML_AUDIODEVICE) == 0) {
+                getDevice(currentNode.text().as_string(""), mGlobalOptions.mAudioDevice, getLineNumber(currentNode.offset_debug()));
             }
             // <onSwitchToRadio>
             else if (strcasecmp(currentNode.name(), XML_ONSWITCHTORADIO) == 0) {
@@ -513,9 +565,13 @@ void cConfigFileParser::parseGlobal(const pugi::xml_node node)
                 mGlobalOptions.mCECKeymap =
                         currentNode.attribute(XML_CEC).as_string(
                                 cKeyMaps::DEFAULTKEYMAP);
-                Dsyslog("Keymap VDR %s CEC %s",
+                mGlobalOptions.mGLOBALKeymap =
+                        currentNode.attribute(XML_GLOBALVDR).as_string(
+                                cKeyMaps::DEFAULTKEYMAP);
+                Dsyslog("Keymap VDR %s CEC %s GLOBAL %s",
                         mGlobalOptions.mVDRKeymap.c_str(),
-                        mGlobalOptions.mCECKeymap.c_str());
+                        mGlobalOptions.mCECKeymap.c_str(),
+                        mGlobalOptions.mGLOBALKeymap.c_str());
             } else if (strcasecmp(currentNode.name(), XML_HDMIPORT) == 0) {
                 if (!textToInt(currentNode.text().as_string("1000"),
                         mGlobalOptions.mHDMIPort)) {
@@ -572,6 +628,15 @@ void cConfigFileParser::parseGlobal(const pugi::xml_node node)
                     throw cCECConfigException(
                             getLineNumber(currentNode.offset_debug()), s);
                 }
+
+            } else if (strcasecmp(currentNode.name(), XML_PHYSICAL) == 0) {
+                if (!textToInt(currentNode.text().as_string("x"),
+                               mGlobalOptions.mPhysicalAddress, 16)) {
+                    string s = "Invalid physical address ";
+                    s += currentNode.text().as_string();
+                    Esyslog(s.c_str());
+                    throw cCECConfigException(getLineNumber(node.offset_debug()), s);
+                }
             } else {
                 string s = "Invalid Node ";
                 s += currentNode.name();
@@ -582,8 +647,15 @@ void cConfigFileParser::parseGlobal(const pugi::xml_node node)
     }
 }
 
-/*
- * parse elements between <vdrkeymap>
+/**
+ * @brief Parses a <vdrkeymap> XML section.
+ *
+ * Creates a VDR-to-CEC key mapping with the specified ID,
+ * initializing from defaults and applying customizations.
+ *
+ * @param node The XML node containing the keymap definition
+ * @param keymaps Reference to the keymaps object to modify
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseVDRKeymap(const xml_node node, cKeyMaps &keymaps)
 {
@@ -649,8 +721,89 @@ void cConfigFileParser::parseVDRKeymap(const xml_node node, cKeyMaps &keymaps)
     }
 }
 
-/*
- * parse elements between <ceckeymap>
+/**
+ * @brief Parses a <globalkeymap> XML section.
+ *
+ * Creates a global VDR-to-CEC key mapping with the specified ID,
+ * used for keys that should always be forwarded to CEC devices.
+ *
+ * @param node The XML node containing the keymap definition
+ * @param keymaps Reference to the keymaps object to modify
+ * @throws cCECConfigException on parsing errors
+ */
+void cConfigFileParser::parseGLOBALKeymap(const xml_node node, cKeyMaps &keymaps)
+{
+    string id = node.attribute(XML_ID).as_string("");
+    if (id.empty()) {
+        string s = "Missing id for global keymap";
+        Esyslog(s.c_str());
+        throw cCECConfigException(getLineNumber(node.offset_debug()), s);
+    }
+
+    Dsyslog ("GLOBALKEYMAP %s\n", id.c_str());
+
+    keymaps.InitGLOBALKeyFromDefault(id);
+    for (xml_node currentNode = node.first_child(); currentNode;
+         currentNode = currentNode.next_sibling()) {
+
+        if (currentNode.type() == node_element)  // is element
+        {
+            if (strcasecmp(currentNode.name(), XML_KEY) != 0) {
+                string s = "Invalid node ";
+                s += currentNode.name();
+                Esyslog(s.c_str());
+                throw cCECConfigException(getLineNumber(node.offset_debug()), s);
+            }
+            string code = currentNode.attribute(XML_CODE).as_string("");
+            if (code.empty()) {
+                string s = "Missing code in global keymap";
+                Esyslog(s.c_str());
+                throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
+            }
+            eKeys k = cKey::FromString(code.c_str());
+            if (k == kNone) {
+                string s = "Unknown GLOBAL key code " + code;
+                Esyslog(s.c_str());
+                throw cCECConfigException(getLineNumber(currentNode.offset_debug()), s);
+            }
+            keymaps.ClearGLOBALKey(id, k);
+
+            // Parse cec key values
+            for (xml_node ceckeynode = currentNode.first_child(); ceckeynode;
+                    ceckeynode = ceckeynode.next_sibling()) {
+                if (ceckeynode.type() == node_element)  // is element
+                        {
+                    if (strcasecmp(ceckeynode.name(), XML_VALUE) != 0) {
+                        string s = "Invalid node ";
+                        s += ceckeynode.name();
+                        Esyslog(s.c_str());
+                        throw cCECConfigException(
+                                getLineNumber(ceckeynode.offset_debug()), s);
+                    }
+                    string ceckey = ceckeynode.text().as_string();
+                    cec_user_control_code c = keymaps.StringToCEC(ceckey);
+                    if (c == CEC_USER_CONTROL_CODE_UNKNOWN) {
+                        string s = "Unknown CEC key code " + ceckey;
+                        Esyslog(s.c_str());
+                        throw cCECConfigException(
+                                getLineNumber(ceckeynode.offset_debug()), s);
+                    }
+                    keymaps.AddGLOBALKey(id, k, c);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Parses a <ceckeymap> XML section.
+ *
+ * Creates a CEC-to-VDR key mapping with the specified ID,
+ * used to translate incoming CEC key presses to VDR keys.
+ *
+ * @param node The XML node containing the keymap definition
+ * @param keymaps Reference to the keymaps object to modify
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseCECKeymap(const xml_node node, cKeyMaps &keymaps)
 {
@@ -714,8 +867,14 @@ void cConfigFileParser::parseCECKeymap(const xml_node node, cKeyMaps &keymaps)
     }
 }
 
-/*
- * parse elements between <device id="">
+/**
+ * @brief Parses a <device> XML section.
+ *
+ * Creates a named device definition with physical and/or logical
+ * addresses that can be referenced elsewhere in the configuration.
+ *
+ * @param node The XML node containing the device definition
+ * @throws cCECConfigException on parsing errors
  */
 void cConfigFileParser::parseDevice(const xml_node node)
 {
@@ -728,7 +887,6 @@ void cConfigFileParser::parseDevice(const xml_node node)
     }
 
     Dsyslog ("DEVICE %s\n", id.c_str());
-    //device.id = id;
     for (xml_node currentNode = node.first_child(); currentNode;
          currentNode = currentNode.next_sibling()) {
 
@@ -785,9 +943,15 @@ void cConfigFileParser::parseDevice(const xml_node node)
     }
     mDeviceMap.insert(std::pair<string, cCECDevice>(id, device));
 }
-/*
- * Helper function to get the line number from the byte offset in the XML
- * error.
+
+/**
+ * @brief Converts a byte offset to a line number.
+ *
+ * Reads through the XML file counting newlines to determine
+ * the line number for error reporting.
+ *
+ * @param offset Byte offset from the start of the file
+ * @return Line number (1-based), or -1 on error
  */
 int cConfigFileParser::getLineNumber(long offset)
 {
@@ -807,8 +971,12 @@ int cConfigFileParser::getLineNumber(long offset)
     return line;
 }
 
-/*
- * Find a menu by name
+/**
+ * @brief Finds a menu by name in the parsed menu list.
+ *
+ * @param menuname Name of the menu to find
+ * @param menu Reference to store the found menu
+ * @return true if menu was found, false otherwise
  */
 bool cConfigFileParser::FindMenu(const string &menuname, cCECMenu &menu) {
     bool found = false;
@@ -823,10 +991,16 @@ bool cConfigFileParser::FindMenu(const string &menuname, cCECMenu &menu) {
     return found;
 }
 
-/*
- * Parse the file, fill mGlobalOptions and mMenuList and return the
- * parsed keymaps.
- * Returns false when a syntax error occurred during parsing.
+/**
+ * @brief Parses the complete XML configuration file.
+ *
+ * Main entry point for configuration parsing. Reads and validates
+ * the XML structure, then parses all sections: keymaps, devices,
+ * global options, menus, and CEC command handlers.
+ *
+ * @param filename Path to the configuration file
+ * @param keymaps Reference to the keymaps object to populate
+ * @return true on success, false if parsing failed
  */
 bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
     bool ret = true;
@@ -840,7 +1014,7 @@ bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
         return false;
     }
 
-    // Get the top-level element: NAme is "root". No attributes for "root"
+    // Get the top-level element: Name is "root". No attributes for "root"
     xml_node elementRoot = xmlDoc.document_element();
     if (elementRoot.empty()) {
         Esyslog("Document contains no data\n");
@@ -864,7 +1038,8 @@ bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
                     (strcasecmp(currentNode.name(), XML_GLOBAL) != 0) ||
                     (strcasecmp(currentNode.name(), XML_MENU) != 0) ||
                     (strcasecmp(currentNode.name(), XML_CECKEYMAP) != 0) ||
-                    (strcasecmp(currentNode.name(), XML_VDRKEYMAP) != 0)
+                    (strcasecmp(currentNode.name(), XML_VDRKEYMAP) != 0) ||
+                    (strcasecmp(currentNode.name(), XML_GLOBALKEYMAP) != 0)
                )) {
                 Esyslog("Invalid Node %s", currentNode.name());
 
@@ -877,9 +1052,10 @@ bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
     cCECDevice device;
     device.mLogicalAddressDefined = CECDEVICE_TV;
     device.mLogicalAddressUsed = CECDEVICE_TV;
-    device.mPhysicalAddress = 0x0000;
+    device.mPhysicalAddress = 0;
     string id = "TV";
     mDeviceMap.insert(std::pair<string, cCECDevice>(id, device));
+
     try {
         currentNode = currentNode.next_sibling(XML_GLOBAL);
         if (currentNode) {
@@ -896,6 +1072,11 @@ bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
         for (currentNode = elementRoot.child(XML_VDRKEYMAP); currentNode;
                 currentNode = currentNode.next_sibling(XML_VDRKEYMAP)) {
             parseVDRKeymap(currentNode, keymaps);
+        }
+        // Parse globalkeymaps
+        for (currentNode = elementRoot.child(XML_GLOBALKEYMAP); currentNode;
+                currentNode = currentNode.next_sibling(XML_GLOBALKEYMAP)) {
+            parseGLOBALKeymap(currentNode, keymaps);
         }
         // Parse device
         for (currentNode = elementRoot.child(XML_DEVICE); currentNode;
@@ -928,7 +1109,7 @@ bool cConfigFileParser::Parse(const string &filename, cKeyMaps &keymaps) {
     }
 
     // Check that referenced menu entries in onceccommand/execmenu,startmenu
-    // are defined
+    // are defined.
     if (ret) {
         cCECMenu m;
         for (mapCommandHandlerIterator i =

@@ -110,6 +110,38 @@ VDR Plugin 'cecremote' Revision History
 - Add a udev rule to the contrib directory which disables ModemManger or
   mtp-probe access to the pulse-eight CEC adapter.
 
-2016-11-10: Version 1.4.1
+2019-10-20: Version 1.4.1
 
-- Compiles with libCEC 4
+- Compiles with libCEC 4.
+- Add startupdelay to global config.
+- Fix a missing close of the xml config file.
+- Bugfixes.
+
+2019-11-04: Version 1.5.0
+
+- Add <onkey> <volumeup> <volumedown> config options the <player> section.
+  These options allows to specify command lists for key presses und volume
+  up/down events for a still picture player.
+
+2024-09-12: Version 1.5.1
+
+- Fix compile problems for VDR 2.7.1
+- Close all file descriptors before exec.
+
+2025-11-11: Version 1.5.2
+
+- Patch to forward the keys kVolUp and kVolDn to a given device in global context.
+  Thanks to rell.
+- Fix use of an unitialized value.
+  Thansk to Fabian Wolter 
+- Drop support for libcec prior to 4.0.0
+
+2025-15-11: Version 1.5.3
+
+- Only new Tag due to incorrect version for tag 1.5.2
+
+2025-01-12: Version 1.6.0
+
+- Update C++ to C++17 standard.
+- Fix two race conditions leading to a crash if no keymap is defined.
+- Add <physical> to global section to set the Physical address of the adapter.

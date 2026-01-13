@@ -35,10 +35,8 @@ ifneq (exists, $(shell pkg-config libcec && echo exists))
   $(error ******************************************************************)
 endif
 
-
 CFLAGS   = $(call PKGCFG,cflags)
 CXXFLAGS = $(call PKGCFG,cxxflags)
-
 
 ### The version number of VDR's plugin API:
 
@@ -70,8 +68,7 @@ DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"'
 LIBS += $(shell pkg-config --libs libcec)
 CFLAGS += $(shell pkg-config --cflags libcec)
 CXXFLAGS += $(shell pkg-config --cflags libcec) 
-# Uncomment if compile against libcec 4
-CXXFLAGS +=-std=c++11
+CXXFLAGS +=-std=c++17
 
 # Flags for pugixml xml parser
 LIBS += -lpugixml
@@ -80,7 +77,7 @@ LIBS += -lpugixml
 
 OBJS = cecremote.o cecremoteplugin.o configmenu.o configfileparser.o \
        cecosd.o stillpicplayer.o ceccontrol.o keymaps.o statusmonitor.o \
-       cmd.o opcodemap.o handleactions.o rtcwakeup.o
+       cmd.o opcodemap.o handleactions.o rtcwakeup.o ceclog.o
 
 ### The main target:
 

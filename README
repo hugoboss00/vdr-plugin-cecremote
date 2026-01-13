@@ -1,392 +1,504 @@
-This is a "plugin" for the Video Disk Recorder (VDR).
+================================================================================
+                        VDR CECRemote Plugin
+================================================================================
 
-Originally written by:                  Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
+A plugin for the Video Disk Recorder (VDR) that enables HDMI-CEC control.
+Control your TV, AV receiver, and other CEC-enabled devices directly from VDR,
+and use your TV remote to control VDR.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-See the file COPYING for more information.
+Originally written by: Ulrich Eckhardt <uli-vdr@uli-eckhardt.de>
 
-Minimum requirements
-==============
-  libCEC V4.0.0 
-  http://libcec.pulse-eight.com/
-  
-  PugiXML V1.5, XML parser for C++
-  http://pugixml.org/
+License: GNU General Public License v2 or later (see COPYING)
+
+================================================================================
+                           TABLE OF CONTENTS
+================================================================================
+
+  1. Features
+  2. Requirements
+  3. Installation
+     3.1 Ubuntu/Debian
+     3.2 Building from Source
+  4. Quick Start
+  5. Configuration Reference
+     5.1 Global Options
+     5.2 Device Definitions
+     5.3 Key Mappings
+     5.4 Menu Definitions
+     5.5 CEC Command Handlers
+     5.6 Command Lists
+  6. SVDRP Commands
+  7. Command Line Arguments
+  8. Troubleshooting
+  9. Examples
+
+================================================================================
+                              1. FEATURES
+================================================================================
+
+  * Receive remote control commands from your TV via HDMI-CEC
+  * Send CEC commands to control TVs, receivers, and players
+  * Automatic power on/off synchronization with your TV
+  * Customizable key mappings (CEC <-> VDR)
+  * Execute shell scripts on CEC events
+  * Still picture player for device control screens
+  * Manual vs. timed start detection (RTC support)
+  * Volume forwarding to audio devices
+
+================================================================================
+                            2. REQUIREMENTS
+================================================================================
+
+  * VDR >= 2.0.0
+  * libCEC >= 4.0.0    - http://libcec.pulse-eight.com/
+  * PugiXML >= 1.5     - http://pugixml.org/
+  * A CEC-compatible USB adapter (e.g., Pulse-Eight) or built-in CEC
+    (Raspberry Pi, some graphics cards)
 
   For PugiXML on Raspberry Pi see:
   http://distribution-us.hexxeh.net/raspbian/archive/raspbian/pool/main/p/pugixml/
 
-Installing dependencies on Ubuntu/Debian:
-==============
+================================================================================
+                            3. INSTALLATION
+================================================================================
+
+3.1 Ubuntu/Debian
+-----------------
 
 Install the required development packages:
 
-  sudo apt-get install libcec-dev libp8-platform-dev libpugixml-dev vdr-dev
+    sudo apt-get install libcec-dev libp8-platform-dev libpugixml-dev vdr-dev
 
-This will install:
+This installs:
   - libcec-dev: libCEC development files for HDMI-CEC communication
   - libp8-platform-dev: Platform support library required by libCEC
   - libpugixml-dev: PugiXML development files for XML parsing
   - vdr-dev: VDR development headers
 
-Optional: Install the CEC client utility for testing:
-
-  sudo apt-get install cec-utils
-
-Building the plugin:
-
-  make
-  sudo make install
-
-Description:
-==============
-
-Plugin to receive and send commands via CEC.
-
-Installation:
-==============
-
-First get connected device either via the cec-client if the plugin is not 
-running :
-     echo "scan" | cec-client -s -d 1
-
-The output should look like:
-    opening a connection to the CEC adapter...
-    requesting CEC bus information ...
-    CEC bus information
-    ===================
-    device #0: TV
-    address:       0.0.0.0
-    active source: no
-    vendor:        Panasonic
-    osd string:    TV
-    CEC version:   1.4
-    power status:  on
-    language:      ger
-
-
-    device #4: Playback 1
-    address:       1.0.0.0
-    active source: no
-    vendor:        Panasonic
-    osd string:    CECTester
-    CEC version:   1.4
-    power status:  on
-    language:      eng
-
-
-    device #8: Playback 2
-    address:       2.0.0.0
-    active source: no
-    vendor:        Samsung
-    osd string:    BD Player
-    CEC version:   1.4
-    power status:  on
-    language:      ???
-
-
-On a running VDR with the cecremote plugin running, this information can
-be retrieved via:
-   svdrpsend plug cecremote LSTD
-
-The output should look like:
-
-220 vdr SVDRP VideoDiskRecorder 2.0.7; Sun Mar  1 15:19:31 2015; UTF-8
-214-Available CEC Devices:
-214-  Device 0 path: /sys/devices/pci0000:00/0000:00:14.0/usb1/1-3 port: /dev/ttyACM0 Firmware 0004
-214-
-214-Active Devices:
-214-   0# TV             @0000 TV              TV             Panasonic
-214-   3# Tuner 1        @1000 Tuner 1         VDR            VDR
-214-   4# Playback 1     @1000 VDR             VDR            VDR
-214    8# Playback 2     @2000 BD Player       BD Player      Samsung
-221 vdr closing connection
-
-In the plugin configuration directory create the file cecremote.xml (an example
-can be found in the contrib directory) with an device entry for each device
-which should be handled by this plugin.
-
-In this example device#8 (osd string=CECTester) is the address of the libCEC
-device (VDR).
-
-After the first start of the vdr ensure, that the CEC device is not accessed
-by the Modem-Manager or mtp-probe by grep for the device path 
-(/sys/devices/pci00 ...) in the log.
-
-An example udev rule which can be installed at /etc/udev/rules.d/20-libcec.rules
-can be found in the contrib directory. This udev rule disables access of the
-ModemManger or mtp-probe to the pulse-eight CEC adapter.
-
-Format of the configuration file :
-===================================
-
-The configuration file is in XML format The root element is <config>. Within
-this element one <global> child element is used to specify global options
-for this plugin and several <menu>, <ceckeymap>, <vdrkeymap> and <globalkeymap>
-child elements.
-
-* Ceckeymap
-====================================
-This element contains definitions for mapping a CEC Key to one or more VDR keys.
-The <ceckeymap> tag must have the attribute "id" specified. This id is used 
-later in the <player> section to address this key map.
-
-This tag creates a new key map with a preconfigured map. Elements of this map
-can be overwritten with <key> elements.
-
-* Vdrkeymap
-====================================
-This element contains definitions for mapping a VDR Key to one or more CEC keys.
-The <vdrkeymap> tag must have the attribute "id" specified. This id is used 
-later in the <player> section to address this key map.
-
-This tag creates a new key map with a preconfigured map. Elements of this map
-can be overwritten with <key> elements.
-
-* Globalkeymap
-====================================
-This element contains definitions for mapping a VDR Key to one or more CEC keys
-in global context (outside of player mode). The <globalkeymap> tag must have
-the attribute "id" specified. This id is used in the <global> section via the
-"globalvdr" attribute of <keymaps> to address this key map.
-
-This tag creates a new key map with a preconfigured map. Elements of this map
-can be overwritten with <key> elements.
-
-* Key
-====================================
-This element is used within <ceckeymap>, <vdrkeymap> or <globalkeymap> to
-overwrite existing map entries. The <key> tag must have the attribute "code"
-specified. This specifies the key code to redefine. If used in <ceckeymap>
-code is a CEC key name (see svdrpsend plug cecremote LSTK for the name of the
-supported CEC key codes). When used in <vdrkeymap> or <globalkeymap> the code
-is the vdr key name as used for example in keymacros.conf.
-
-The <key> element can have <value> elements which specifies the key codes
-to map. If no <value> element is specified, this key code is not mapped and
-so this key is not usable.
-
-* Value
-====================================
-This element is used within <key> to assign key codes to the key map.
-
-If the <value> element is used in <vdrkeymap> the <value> element contains
-a CEC key name (see svdrpsend plug cecremote LSTK for the name of the
-supported CEC key codes). When used in <ceckeymap> the <value> element is the
-vdr key name as used for example in keymacros.conf.
-
-The following example create a new key map with id "TV" where the VDR key OK
-is mapped the the CEC "ROOT_MENU" key:
-
-  <vdrkeymap id="TV">
-    <key code="OK">
-      <value>ROOT_MENU</value>
-    </key>
-  </vdrkeymap>
-
-The next example creates an other key map with id "TV". If the CEC key code
-"SELECT" is received, this key is mapped to the VDR menu key. The key code
-"RIGHT_UP" is mapped to only "right" and not as default to right+up.
-
-  <ceckeymap id="TV">
-    <key code="SELECT">
-      <value>Menu</value>
-    </key>
-    <key code="RIGHT_UP">
-      <value>Right</value>
-    </key>
-  </ceckeymap>
-
-
-* device
-====================================
-The device element contains definitions for CEC devices. The main purpose is
-to specify a CEC device by the physical address, e.g. when more than one
-recording device may be available.
-
-The following configuration would create an entry for a blueray player.
-<device id="blueray">
-   <physical>2000</physical>
-   <logical>8</logical>
-</device>
-
-The software first tries to get the logical address by the device located at
-the physical address 2000 (second HDMI port connected to the TV, for the
-address concept see for example 
-http://elinux.org/CEC_%28Consumer_Electronics_Control%29_over_HDMI ).
-
-In case that there is more than one device available at the physical address or
-no device could be found on the physical address the logical address (in this
-case Playback 2) is used.
-
-* Global
-====================================
-
-The child elements of <global> are <rtcdetect>, <cecdebug>, <onstart>,
-<onmanualstart>, <onstop> <onswitchtotv>, <onswitchtoradio>, <onswitchtoreplay>,
-<onvolumeup>, <onvolumedown>, <shutdownonstandby>, <poweroffonstandby>,
-<keymaps>, <basedevice> and <audiodevice>.
-
-<cecdebug>          Debug level for CEC debugging (see cec_log_level in cectypes.h)
-<onstart>           A command list which is executed upon plugin start.
-<onmanualstart>     A command list which is executed upon manual plugin start, but 
-                    not if the VDR was started due to a timer.
-<onstop>            A command list which is executed upon plugin shutdown.
-<onswitchtotv>      A command list which is executed if switched to a TV program.
-<onswitchtoradio>   A command list which is executed if switched to a radio program.
-<onswitchtoreplay>  A command list which is executed if the VDR replays a recording.
-<onvolumeup>        A command list which is executed when volume increases.
-<onvolumedown>      A command list which is executed when volume decreases.
-<keymaps>           The <keymaps> tag has the attributes "cec", "vdr" and "globalvdr"
-                    which address the id specified within a <ceckeymap>, <vdrkeymap>
-                    or <globalkeymap>. These keymaps are used for key conversion.
-<cecdevicetype>     The device types to register with libCEC. The following
-                    device types are available:
-                    * RECORDING_DEVICE
-                    * TUNER
-                    * TV
-                    * PLAYBACK_DEVICE
-                    * AUDIO_SYSTEM
-<hdmiport>          Specify the HDMI-Port where the adapter is connected to.
-<basedevice>        Specify the logical address of the device this adapter is
-                    connected to (typically 0 for TV). Value range: 0-15.
-<rtcdetect>         If set to true (default) use the rtc driver to detect if
-                    the vdr was started manually or by rtc alarm. Otherwise
-                    use a heuristic. If the VDR was started in a time range
-                    5 minutes before or after an timer was running, the VDR
-                    start is detected as timed start.
-<shutdownonstandby> If set to true, all CEC devices are set to standby when the
-                    VDR is shut down. Default is false.
-<poweroffonstandby> If set to true, all CEC devices are set to power off when
-                    the VDR is shut down. Default is false.
-<startupdelay>      Wait number of seconds before initializing the cec adapter
-                    and execute the <onstart> or <onmanualstart> command lists.
-<audiodevice>       If set, VDR keys kVolUp and kVolDn are forwarded to the
-                    given device in global context.
-<physical>          If set, specify the physical address of the CEC adapter.
-
-NOTE: There seems to be a bug in the libCEC implementation for the Raspberry PI
-      which causes a crash when registering more than one device type.
-
-For the description of a command list see below.
-
-* Menu
-====================================
-
-Defines a menu for executing CEC and shell commands.
-
-The <menu> tag must have the following attributes:
-  * name    : The name of the menu (displayed in the OSD)
-  * address : CEC device address.
-  
-The child elements of <menu> are <onstart>, <onstop>, <player>,
-<onpoweron>, <onpoweroff>. <onstart>, <onstop> and <onpoweron>, <onpoweroff>
-are mutually exclusive.
-
-<player>    : (see below).
-              
-<onstart>   : A command list which is executed when the menu entry is selected.
-<onstop>    : A command list which is executed if <stillpic> is present and 
-              the player is stopped.
-<onpoweron> : A command list which is executed if the device is currently
-              powered off.
-<onpoweroff>: A command list which is executed if the device is currently
-              powered on.
-
-* OnCECCommand
-====================================
-
-Perform actions when a cec command is received.
-
-The <onceccommand> must have the following attributes:
-  * command :   A CEC opcode as string as defined in cectypes.h, but without the
-                CEC_OPCODE_ prefix. The opcode can also be defined as a numeric
-                or hex value. The following examples are valid defines for
-                CEC_OPCODE_STANDBY:
-
-                command="STANDBY", command="0x36", command="54"
-  * initiator : The device which initiated this command.
-
-The child elements of <onceccommand> are <stopmenu>, <execmenu> and
-<commandlist>.
-
-<stopmenu>menu name</stopmenu>:
-    If a menu with the name has a still pic player, this player is stopped.
-<execmenu>menu name</execmenu>:
-    Execute the CEC plugin menu entry with the name.
-<commandlist>:
-   A command list which is executed when this command is received.
-
-* Player 
-====================================
-Starts a stillpic player and waits until the player is stopped. This tag can
-not be used with <onpoweron> and <onpoweroff>.
-
-The <player> tag must have the following attribute:
-  * file : Filename of the still-picture in mpeg format.
-
-The child elements of <player> are <stop>, <onkey>, <onvolumeup>, <onvolumedown>
-and <keymaps> 
-
-<stop>        : Can be used several times and contains a VDR-Key to stop this player.
-<keymaps>     : The <keymaps> tag has the attributes "cec" and "vdr" which
-                addresses the id specified within <ceckeymap> or <vdrkeymap>.
-                When the player is started, these keymaps are activated. If a tag is
-                missing, the default keymap is used.
-<onkey>       : The onkey tag must have set the code attribute.
-                <onkey code="VDR KEY"> can be used to map a VDR key to a command 
-                list. This command list is executed whenever this player is active
-                and the respective key is pressed.
-
-                The following example will execute the script volume_up.sh if the
-                RED-button is pressed. 
-                <onkey code="RED">
-                   <exec>volume_up.sh</exec>
-                </onkey>
-<onvolumeup>  : A command list which is executed whenever the volume increases.
-<onvolumedown>: A command list which is executed whenever the volume decreases.
-
-Note: The volume is still routed to the primary device when <volumeup> or
-      <volumedown> is used.
-
-* Command lists
-====================================
-
-A command list defines a list of actions to be executed.
-
-The child elements of a command list are <poweron>, <poweroff>, <makeactive>
-and <exec>.
-
-<poweron>CEC Device Address</poweron>       : Powers the device on.
-<poweroff>CEC Device Address</poweroff>     : Powers the device off.
-<makeactive/>                               : Makes the VDR the active device.
-<makeinactive/>                             : Remove the VDR as the active device.
-<textviewon>CEC Device Address</textviewon> : Send the TextViewOn CEC command to
-                                              the CEC device.
-<exec>Command</exec>                        : Executes a shell command.
-
-
-* SVDRP Commands
-=====================================
-LSTK     : List all supported CEC keycodes
-LSTD     : List active CEC devices
-KEYM     : List available key maps
-VDRK [id]: Display the VDR->CEC key map with the given id
-CECK [id]: Display the CEC->VDR key map with the given id
-CONN     : Connect the CEC adapter.
-DISC     : Disconnect the CEC adapter. This can be used for example,
-           if an other program requires access to the CEC adapter.
-
-* Commandline arguments
-=====================================
--c  --configdir <dir>   : Directory for the configuration file. If the directory
-                          does not start with a slash, the directory is relative
-                          to the vdr config directory, otherwise it specifies an
-                          absolute path. Default is cecremote.
--x  --configfile <file> : Name of the configuration file. Default is cecremote.xml
--l  --loglevel <level>  : Set the plugin log level (0=none, 1=errors,
-                          2=errors+warn, 3=errors+warn+debug). Default is VDR's
-                          current log level.
+Optional - Install CEC utilities for testing:
+
+    sudo apt-get install cec-utils
+
+3.2 Building from Source
+------------------------
+
+    make
+    sudo make install
+
+The plugin will be installed to VDR's plugin directory.
+
+================================================================================
+                            4. QUICK START
+================================================================================
+
+1. SCAN FOR CEC DEVICES
+
+   Before configuring the plugin, scan your CEC bus to find devices:
+
+       echo "scan" | cec-client -s -d 1
+
+   Example output:
+
+       opening a connection to the CEC adapter...
+       requesting CEC bus information ...
+       CEC bus information
+       ===================
+       device #0: TV
+       address:       0.0.0.0
+       active source: no
+       vendor:        LG
+       osd string:    TV
+       CEC version:   1.4
+       power status:  on
+       language:      ger
+
+       device #4: Playback 1
+       address:       2.0.0.0
+       active source: no
+       vendor:        Pulse Eight
+       osd string:    CECTester
+       CEC version:   1.4
+       power status:  on
+       language:      ???
+
+   Or with the plugin already running:
+
+       svdrpsend plug cecremote LSTD
+
+2. CREATE CONFIGURATION FILE
+
+   Copy the example configuration:
+
+       mkdir -p /etc/vdr/plugins/cecremote
+       cp contrib/cecremote.xml /etc/vdr/plugins/cecremote/
+
+   Edit the file to match your device setup.
+
+3. PREVENT DEVICE CONFLICTS
+
+   Install the udev rule to prevent ModemManager from grabbing the adapter:
+
+       sudo cp contrib/20-libcec.rules /etc/udev/rules.d/
+       sudo udevadm control --reload-rules
+
+4. START VDR
+
+   Start VDR with the plugin:
+
+       vdr -P cecremote
+
+================================================================================
+                       5. CONFIGURATION REFERENCE
+================================================================================
+
+The configuration file uses XML format. Root element is <config>.
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <config>
+        <global>...</global>
+        <device>...</device>
+        <ceckeymap>...</ceckeymap>
+        <vdrkeymap>...</vdrkeymap>
+        <globalkeymap>...</globalkeymap>
+        <menu>...</menu>
+        <onceccommand>...</onceccommand>
+    </config>
+
+-------------------------------------------------------------------------------
+5.1 Global Options
+-------------------------------------------------------------------------------
+
+    <global>
+        <cecdebug>7</cecdebug>
+        <hdmiport>1</hdmiport>
+        <basedevice>0</basedevice>
+        <rtcdetect>true</rtcdetect>
+        <shutdownonstandby>false</shutdownonstandby>
+        <poweroffonstandby>false</poweroffonstandby>
+        <startupdelay>0</startupdelay>
+        <physical>1000</physical>
+        <cecdevicetype>RECORDING_DEVICE</cecdevicetype>
+        <audiodevice>TV</audiodevice>
+        <keymaps cec="default" vdr="default" globalvdr="default"/>
+        <onstart>...</onstart>
+        <onmanualstart>...</onmanualstart>
+        <onstop>...</onstop>
+        <onswitchtotv>...</onswitchtotv>
+        <onswitchtoradio>...</onswitchtoradio>
+        <onswitchtoreplay>...</onswitchtoreplay>
+        <onvolumeup>...</onvolumeup>
+        <onvolumedown>...</onvolumedown>
+    </global>
+
+OPTIONS:
+
+  <cecdebug>          CEC library debug level (see cec_log_level in cectypes.h)
+                      1=errors, 2=warnings, 4=notice, 8=traffic, 16=debug
+                      Combine with OR, e.g., 7 = errors+warnings+notice
+
+  <hdmiport>          HDMI port number where the adapter is connected (1-15)
+
+  <basedevice>        Logical address of device adapter connects to (0=TV)
+
+  <rtcdetect>         Use RTC to detect manual vs. timed start (true/false)
+
+  <shutdownonstandby> Set devices to standby on VDR shutdown (true/false)
+
+  <poweroffonstandby> Power off devices on VDR shutdown (true/false)
+
+  <startupdelay>      Seconds to wait before CEC initialization
+
+  <physical>          Physical address override (hex, e.g., 1000 = 1.0.0.0)
+
+  <cecdevicetype>     Device type to register: RECORDING_DEVICE, TUNER, TV,
+                      PLAYBACK_DEVICE, AUDIO_SYSTEM
+
+  <audiodevice>       Device for volume key forwarding
+
+  <keymaps>           Default keymaps (cec, vdr, globalvdr attributes)
+
+  <onstart>           Commands executed on plugin start
+  <onmanualstart>     Commands executed only on manual start (not timer)
+  <onstop>            Commands executed on plugin shutdown
+  <onswitchtotv>      Commands executed when switching to TV channel
+  <onswitchtoradio>   Commands executed when switching to radio channel
+  <onswitchtoreplay>  Commands executed when starting replay
+  <onvolumeup>        Commands executed on volume increase
+  <onvolumedown>      Commands executed on volume decrease
+
+NOTE: Raspberry Pi libCEC may crash when registering multiple device types.
+
+-------------------------------------------------------------------------------
+5.2 Device Definitions
+-------------------------------------------------------------------------------
+
+Define CEC devices by physical and/or logical address:
+
+    <device id="blueray">
+        <physical>2000</physical>
+        <logical>8</logical>
+    </device>
+
+  <physical>  Physical address in hex (2000 = HDMI port 2 on TV)
+  <logical>   Logical address fallback (0-15)
+
+The plugin tries physical address first, then falls back to logical.
+Device IDs can be referenced elsewhere (e.g., in command lists).
+
+Predefined device: "TV" (logical address 0)
+
+-------------------------------------------------------------------------------
+5.3 Key Mappings
+-------------------------------------------------------------------------------
+
+Three types of keymaps:
+
+  <ceckeymap>     CEC key -> VDR key(s)  (incoming remote commands)
+  <vdrkeymap>     VDR key -> CEC key(s)  (outgoing commands in player)
+  <globalkeymap>  VDR key -> CEC key(s)  (outgoing commands globally)
+
+EXAMPLE - Remap SELECT to Menu:
+
+    <ceckeymap id="mymap">
+        <key code="SELECT">
+            <value>Menu</value>
+        </key>
+        <key code="RIGHT_UP">
+            <value>Right</value>  <!-- Only Right, not Right+Up -->
+        </key>
+    </ceckeymap>
+
+EXAMPLE - Remap OK to ROOT_MENU:
+
+    <vdrkeymap id="tvcontrol">
+        <key code="Ok">
+            <value>ROOT_MENU</value>
+        </key>
+    </vdrkeymap>
+
+Use SVDRP to list available key codes:
+
+    svdrpsend plug cecremote LSTK    # List CEC key codes
+
+-------------------------------------------------------------------------------
+5.4 Menu Definitions
+-------------------------------------------------------------------------------
+
+Create OSD menu entries for controlling devices:
+
+    <menu name="Blu-Ray Player" address="blueray">
+        <onstart>
+            <poweron>blueray</poweron>
+            <makeactive/>
+        </onstart>
+        <onstop>
+            <makeinactive/>
+        </onstop>
+    </menu>
+
+POWER TOGGLE MODE (alternative to onstart/onstop):
+
+    <menu name="TV Power" address="TV">
+        <onpoweron>
+            <poweroff>TV</poweroff>
+        </onpoweron>
+        <onpoweroff>
+            <poweron>TV</poweron>
+            <makeactive/>
+        </onpoweroff>
+    </menu>
+
+WITH STILL PICTURE PLAYER:
+
+    <menu name="Blu-Ray" address="blueray">
+        <player file="/path/to/blueray.mpg">
+            <stop>Back</stop>
+            <stop>Menu</stop>
+            <keymaps cec="default" vdr="blueray"/>
+            <onkey code="Red">
+                <exec>/usr/local/bin/blueray-eject.sh</exec>
+            </onkey>
+            <onvolumeup>...</onvolumeup>
+            <onvolumedown>...</onvolumedown>
+        </player>
+        <onstart>
+            <poweron>blueray</poweron>
+        </onstart>
+        <onstop>
+            <poweroff>blueray</poweroff>
+        </onstop>
+    </menu>
+
+-------------------------------------------------------------------------------
+5.5 CEC Command Handlers
+-------------------------------------------------------------------------------
+
+React to CEC commands from other devices:
+
+    <onceccommand command="STANDBY" initiator="TV">
+        <commandlist>
+            <exec>/usr/local/bin/vdr-shutdown.sh</exec>
+        </commandlist>
+    </onceccommand>
+
+    <onceccommand command="SET_STREAM_PATH" initiator="TV">
+        <execmenu>Blu-Ray Player</execmenu>
+    </onceccommand>
+
+ATTRIBUTES:
+  command    CEC opcode name (without CEC_OPCODE_ prefix) or numeric value
+             Examples: "STANDBY", "0x36", "54"
+  initiator  Source device
+
+CHILD ELEMENTS:
+  <stopmenu>     Stop the named menu's still picture player
+  <execmenu>     Execute the named menu entry
+  <commandlist>  Execute a command list
+
+-------------------------------------------------------------------------------
+5.6 Command Lists
+-------------------------------------------------------------------------------
+
+Command lists are used in <onstart>, <onstop>, <onpoweron>, etc.
+
+Available commands:
+
+    <poweron>device</poweron>       Power on the device
+    <poweroff>device</poweroff>     Power off / standby the device
+    <textviewon>device</textviewon> Send TextViewOn (wake + switch input)
+    <makeactive/>                   Make VDR the active source
+    <makeinactive/>                 Release active source
+    <exec>command</exec>            Execute shell command
+
+EXAMPLE:
+
+    <onstart>
+        <poweron>TV</poweron>
+        <textviewon>TV</textviewon>
+        <makeactive/>
+        <exec>/usr/local/bin/notify-started.sh</exec>
+    </onstart>
+
+================================================================================
+                          6. SVDRP COMMANDS
+================================================================================
+
+Query and control the plugin via SVDRP:
+
+    svdrpsend plug cecremote <COMMAND>
+
+COMMANDS:
+
+  LSTD         List active CEC devices
+  LSTK         List all supported CEC key codes
+  KEYM         List available key maps
+  VDRK <id>    Display VDR->CEC key map
+  CECK <id>    Display CEC->VDR key map
+  GLOK <id>    Display Global VDR->CEC key map
+  CONN         Connect to CEC adapter
+  DISC         Disconnect from CEC adapter (for other apps to use it)
+  STAT         Show plugin status
+
+================================================================================
+                       7. COMMAND LINE ARGUMENTS
+================================================================================
+
+    vdr -P "cecremote [OPTIONS]"
+
+OPTIONS:
+
+  -c, --configdir <dir>
+      Configuration directory. Relative paths are relative to VDR config dir.
+      Default: cecremote
+
+  -x, --configfile <file>
+      Configuration file name.
+      Default: cecremote.xml
+
+  -l, --loglevel <level>
+      Plugin log level:
+        0 = none
+        1 = errors only
+        2 = errors + warnings
+        3 = errors + warnings + debug
+      Default: VDR's log level
+
+EXAMPLE:
+
+    vdr -P "cecremote -c /etc/vdr/cec -x myconfig.xml -l 2"
+
+================================================================================
+                          8. TROUBLESHOOTING
+================================================================================
+
+ADAPTER NOT FOUND
+  - Check USB connection
+  - Verify with: ls -l /dev/ttyACM*
+  - Check dmesg for USB device detection
+
+PERMISSION DENIED
+  - Add user to dialout group: sudo usermod -a -G dialout $USER
+  - Install udev rules from contrib/20-libcec.rules
+
+MODEMMANAGER INTERFERENCE
+  - Install the udev rule to blacklist the adapter
+  - Check logs: grep -i "modem\|mtp" /var/log/syslog
+
+NO CEC DEVICES FOUND
+  - Ensure TV supports CEC (often called Anynet+, Bravia Sync, SimpLink, etc.)
+  - Enable CEC in TV settings
+  - Try different HDMI port
+  - Test with: echo "scan" | cec-client -s -d 1
+
+KEYS NOT WORKING
+  - Check key mappings: svdrpsend plug cecremote LSTK
+  - Verify with verbose logging: vdr -P "cecremote -l 3"
+
+CRASH ON STARTUP (Raspberry Pi)
+  - Use only one <cecdevicetype> in configuration
+
+================================================================================
+                             9. EXAMPLES
+================================================================================
+
+See contrib/cecremote.xml for a complete example configuration.
+
+MINIMAL CONFIGURATION:
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <config>
+        <global>
+            <hdmiport>1</hdmiport>
+            <onstart>
+                <poweron>TV</poweron>
+                <makeactive/>
+            </onstart>
+            <onstop>
+                <makeinactive/>
+            </onstop>
+        </global>
+    </config>
+
+POWER SYNC WITH TV:
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <config>
+        <global>
+            <hdmiport>1</hdmiport>
+            <shutdownonstandby>true</shutdownonstandby>
+            <onstart>
+                <poweron>TV</poweron>
+                <makeactive/>
+            </onstart>
+            <onstop>
+                <poweroff>TV</poweroff>
+            </onstop>
+        </global>
+        <onceccommand command="STANDBY" initiator="TV">
+            <commandlist>
+                <exec>poweroff</exec>
+            </commandlist>
+        </onceccommand>
+    </config>
+
+================================================================================

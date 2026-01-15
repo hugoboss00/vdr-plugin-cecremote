@@ -225,7 +225,6 @@ void cCECRemote::Action(void)
     cCmd cmd;
     cCECList ceckmap;
     cec_logical_address addr;
-    eKeys k;
 
     // Allow some delay before the first connection to the CEC Adapter.
     if (mStartupDelay > 0) {

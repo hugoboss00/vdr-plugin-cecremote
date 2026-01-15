@@ -13,7 +13,12 @@
 #include "ceclog.h"
 #include "cecremoteplugin.h"
 #include <sys/wait.h>
+#include <unistd.h>
+// close_range() requires glibc >= 2.34 and Linux >= 5.9
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
 #include <linux/close_range.h>
+#define HAVE_CLOSE_RANGE 1
+#endif
 // We need this for cecloader.h
 #include <iostream>
 #include <csignal>
@@ -809,7 +814,17 @@ void cCECRemote::Exec(cCmd &execcmd)
     		Esyslog("Sid failed");
     		abort();
     	}
+    	// Close all file descriptors >= 4 to prevent leaking to child process
+#ifdef HAVE_CLOSE_RANGE
     	close_range(4, UINT_MAX, CLOSE_RANGE_UNSHARE);
+#else
+    	// Fallback for older glibc (< 2.34) / Linux (< 5.9)
+    	int maxfd = sysconf(_SC_OPEN_MAX);
+    	if (maxfd < 0) maxfd = 1024;
+    	for (int fd = 4; fd < maxfd; fd++) {
+    	    close(fd);
+    	}
+#endif
         execl("/bin/sh", "sh", "-c", execcmd.mExec.c_str(), nullptr);
         Esyslog("Exec failed");
         abort();
